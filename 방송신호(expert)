@@ -1,0 +1,243 @@
+#include <cstdio>
+
+int det_pos[4] = { 0,63,4032,4095 };
+unsigned char det_dat[4] = { 13,0,9,15 };
+
+unsigned char getpixel44(unsigned char bitmap[256][32], int r, int c) {
+    unsigned char mask1 = 0x80 >> (c % 8);
+    unsigned char mask2 = 0x80 >> ((c + 1) % 8);
+
+    unsigned char zero_count = 0, one_count = 0;
+
+    if ((bitmap[r][c / 8] & mask1) == mask1) {
+        one_count++;
+    }
+    else {
+        zero_count++;
+    }
+    if ((bitmap[r][(c + 1) / 8] & mask2) == mask2) {
+        one_count++;
+    }
+    else {
+        zero_count++;
+    }
+    if ((bitmap[r + 1][c / 8] & mask1) == mask1) {
+        one_count++;
+    }
+    else {
+        zero_count++;
+    }
+    if ((bitmap[r + 1][(c + 1) / 8] & mask2) == mask2) {
+        one_count++;
+    }
+    else {
+        zero_count++;
+    }
+    return one_count > zero_count ? 1 : 0;
+}
+
+void setpixel44(unsigned char bitmap[256][32], int r, int c, unsigned char bit) {
+    unsigned char mask1 = 0x80 >> (c % 8);
+    unsigned char mask2 = 0x80 >> ((c+1) % 8);
+    for (int i = r; i <= r + 1; i++) {
+        for (int j = c; j <= c + 1; j++) {
+            if (j == c) {
+                if (bit == 0) bitmap[i][j / 8] &= ~mask1;
+                else bitmap[i][j / 8] |= mask1;
+            }
+            else {
+                if (bit == 0) bitmap[i][j / 8] &= ~mask2;
+                else bitmap[i][j / 8] |= mask2;
+            }
+
+        }
+    }
+
+}
+
+void setNum(int pos, int num, unsigned char bitmap[256][32]) {
+
+    unsigned char bit1 = (num & 0b1000) >> 3;  //첫번쨰 비트
+    unsigned char bit2 = (num & 0b100) >> 2;   //두번째
+    unsigned char bit3 = (num & 0b10) >> 1;    //세번째
+    unsigned char bit4 = num & 0b1;            //네번째
+
+    int r = (pos / 64) * 4;
+    int c = (pos % 64) * 4;
+
+    setpixel44(bitmap, r, c, bit1);
+    setpixel44(bitmap, r, c+2, bit2);
+    setpixel44(bitmap, r+2, c, bit3);
+    setpixel44(bitmap, r + 2, c + 2, bit4);
+}
+
+unsigned char getNum(int pos, unsigned char bitmap[256][32]) {
+
+    int r = (pos / 64 * 4);
+    int c = (pos % 64 * 4);
+
+    unsigned char bit1 = getpixel44(bitmap, r, c);
+    unsigned char bit2 = getpixel44(bitmap, r, c + 2);
+    unsigned char bit3 = getpixel44(bitmap, r + 2, c);
+    unsigned char bit4 = getpixel44(bitmap, r+2, c + 2);
+
+    int ret= (bit1 << 3) + (bit2 << 2) + (bit3 << 1) + bit4;
+    return ret;
+
+}
+
+unsigned char getpixel(unsigned char bitmap[256][32], int r, int c) {
+    unsigned char mask = 0x80 >> (c % 8);
+    if ((bitmap[r][c / 8] & mask) == mask)  return 1;
+    else return 0;
+}
+
+void setpixel(unsigned char bitmap[256][32], int r, int c, unsigned char bit) {
+    unsigned char mask = 0x80 >> (c % 8);
+    if (bit == 0) bitmap[r][c / 8] &= ~mask;
+    else bitmap[r][c / 8] |= mask;
+}
+
+static void rotate(unsigned char bitmap[256][32], int mode) {
+    unsigned char buff[256][32];
+    for (int i = 0; i < 256; i++) {
+        for (int j = 0; j < 32; j++) {
+            buff[i][j] = bitmap[i][j];
+        }
+    }
+
+    switch (mode) {
+    case 1: // 90
+        for (register int i = 0; i < 256; i++)
+            for (register int j = 0; j < 256; j++)
+                setpixel(bitmap, i, j, getpixel(buff, 255 - j, i));
+        break;
+    case 2: // 180
+        for (register int i = 0; i < 256; i++)
+            for (register int j = 0; j < 256; j++)
+                setpixel(bitmap, i, j, getpixel(buff, 255 - i, 255 - j));
+        break;
+    case 3: // 270
+        for (register int i = 0; i < 256; i++)
+            for (register int j = 0; j < 256; j++)
+                setpixel(bitmap, i, j, getpixel(buff, j, 255 - i));
+        break;
+    default:
+        break;
+    }
+}
+
+static void flip(unsigned char bitmap[256][32], int mode)
+{
+    unsigned char buff[256][32];
+    for (int i = 0; i < 256; i++) {
+        for (int j = 0; j < 32; j++) {
+            buff[i][j] = bitmap[i][j];
+        }
+    }
+
+    switch (mode) {
+    case 1: // Horizontal
+        for (register int i = 0; i < 256; i++)
+            for (register int j = 0; j < 256; j++)
+                setpixel(bitmap, i, j, getpixel(buff, 255 - i, j));
+        break;
+    case 2: // Vertical
+        for (register int i = 0; i < 256; i++)
+            for (register int j = 0; j < 256; j++)
+                setpixel(bitmap, i, j, getpixel(buff, i, 255 - j));
+        break;
+    default: // 0
+        break;
+    }
+
+}
+
+void encode(unsigned char bitmap[256][32], unsigned char data[4096]) {
+
+    int count = 0;
+    int dat;
+    int pos = 0;
+
+    for (int i = 0; i < 256; i++) {
+        for (int j = 0; j < 32; j++) {
+            bitmap[i][j] = 0;
+        }
+    }
+
+    for (int i = 0; i < 4096; i++) {
+        if (pos == 0 || pos == 63 || pos == 4032) pos++;
+        dat = data[i];
+        if (dat == 0) {
+            if (i != 4095) {
+                if (data[i + 1] == 0) {
+                    if (count != 4) {
+                        setNum(pos++, 15, bitmap);
+                        count++;    //판별값 주소값 증가
+                        i++;        //i는 다음 판별데이터는 스킵해야함으로 ++한번더
+                        continue;
+                    }
+                }
+            }
+            else {
+                setNum(pos++, dat, bitmap);
+            }
+        }
+        setNum(pos++, dat, bitmap);
+    }
+    for (int i = 0; i < 4; i++) {
+        setNum(det_pos[i], det_dat[i], bitmap);
+    }
+
+}
+
+void decode(unsigned char data[4096], unsigned char bitmap[256][32]) {
+
+    int det = 0;
+
+    for (int i = 0; i < 4; i++) {
+        det *= 100;
+        det += getNum(det_pos[i], bitmap);
+    }
+
+    if (det == 141506) {
+        flip(bitmap, 2);
+    }
+    else if (det == 6150700) {
+        flip(bitmap, 1);
+    }
+    else if (det ==6071500 ) {
+        rotate(bitmap, 3);
+    }
+    else if (det==11090015) {
+        flip(bitmap, 2);
+        rotate(bitmap, 3);
+    }
+    else if (det == 15000913) {
+        flip(bitmap, 1);
+        rotate(bitmap, 3);
+    }
+    else if (det == 15090011) {
+        rotate(bitmap, 2);
+    }
+    else if (det == 151406) {
+        rotate(bitmap, 1);
+    }
+    else {
+    }
+
+    int pos = 0;
+    int dat;
+    for (int i = 0; i < 4096; i++) {
+        if (pos == 0 || pos == 63 || pos == 4032)pos++;
+        dat = getNum(pos,bitmap);
+        if (dat == 15) {
+            data[i] = 0; data[i + 1] = 0; i++;
+        }
+        else {
+            data[i] = dat;
+        }
+        pos++;
+    }
+
+}
