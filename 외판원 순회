@@ -1,0 +1,41 @@
+#include <cstdio>
+#include <cstring>
+#include <algorithm>
+
+using namespace std;
+
+int N,w[16][16];
+int all_visit;
+int dp[16][1 << 17];
+
+int dfs(int here, int visit) {
+	if (visit == all_visit) return w[here][0]==0?999999999:w[here][0];
+
+	int& ret = dp[here][visit];
+
+	if (ret) return ret;
+
+	ret = 999999999;
+
+	for (int i = 0; i < N; i++) {
+		if (!w[here][i]) continue;
+		if (visit&(1 << i)) continue;
+		ret= min(ret, dfs(i, visit | (1 << i))+w[here][i]);
+	}
+	return ret;
+
+}
+
+int main() {
+	scanf("%d", &N);
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < N; j++) {
+			scanf("%d", &w[i][j]);
+		}
+	}
+	all_visit = (1 << N) - 1; //N칸만큼 전부다 1로 채워져있음->다 방문했다는 뜻
+	int ans = dfs(0, 1);
+	printf("%d", ans);
+
+	return 0;
+}
